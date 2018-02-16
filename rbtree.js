@@ -4,6 +4,19 @@ module.exports = createRBTree
 
 var RED   = 0
 var BLACK = 1
+var COUNTER = 0
+
+var toRelease = {}
+
+createRBTree.flush = function() {
+  for (var key in toRelease) {
+    var r = toRelease[key]
+    r.value = null
+    r.left = null
+    r.right = null
+  }
+  toRelease = {}
+}
 
 function RBNode(color, key, value, left, right, count) {
   this._color = color
@@ -12,7 +25,53 @@ function RBNode(color, key, value, left, right, count) {
   this.left = left
   this.right = right
   this._count = count
+  this._retainCount = 0
+  this._id = COUNTER++
 }
+
+var rbProto = RBNode.prototype;
+rbProto.release = function() {
+  if (--this._retainCount <= 0 && !this._isReleasing) {
+    toRelease[this._id] = this
+    this._isReleasing = true
+  }
+}
+rbProto.retain = function() {
+  this._retainCount++
+  if (this._isReleasing && this._retainCount > 0) {
+    delete toRelease[this._id]
+    this._isReleasing = false
+  }
+  return this
+}
+Object.defineProperty(rbProto, "left", {
+  get: function() {
+    return this._left;
+  },
+  set: function(newValue) {
+    if (newValue) {
+      newValue.retain();
+    }
+    if (this._left) {
+      this._left.release();
+    }
+    this._left = newValue;
+  }
+})
+Object.defineProperty(rbProto, "right", {
+  get: function() {
+    return this._right;
+  },
+  set: function(newValue) {
+    if (newValue) {
+      newValue.retain();
+    }
+    if (this._right) {
+      this._right.release();
+    }
+    this._right = newValue;
+  }
+})
 
 function cloneNode(node) {
   return new RBNode(node._color, node.key, node.value, node.left, node.right, node._count)
@@ -28,7 +87,7 @@ function recount(node) {
 
 function RedBlackTree(compare, root) {
   this._compare = compare
-  this.root = root
+  this.root = root && root.retain()
 }
 
 var proto = RedBlackTree.prototype
@@ -63,8 +122,14 @@ Object.defineProperty(proto, "length", {
   }
 })
 
+proto.release = function() {
+  this.root && this.root.release()
+}
+
 //Insert a new item into the tree
 proto.insert = function(key, value) {
+  this.release()
+  
   var cmp = this._compare
   //Find point to insert new node at
   var n = this.root
@@ -89,7 +154,9 @@ proto.insert = function(key, value) {
     } else {
       n_stack[s] = new RBNode(n._color, n.key, n.value, n.left, n_stack[s+1], n._count+1)
     }
+    n.release()
   }
+
   //Rebalance tree using rotations
   //console.log("start insert", key, d_stack)
   for(var s=n_stack.length-1; s>1; --s) {
@@ -225,6 +292,7 @@ proto.insert = function(key, value) {
   }
   //Return new tree
   n_stack[0]._color = BLACK
+  n_stack[0].retain()
   return new RedBlackTree(cmp, n_stack[0])
 }
 

@@ -63,6 +63,7 @@ tape("insert()", function(t) {
     t.equals(u.length, arr.length)
     arr.push(x)
     u = next
+    makeTree.flush()
   }
   for(var i=-20; i<0; ++i) {
     var x = i
@@ -77,6 +78,7 @@ tape("insert()", function(t) {
     t.equals(ptr, arr.length)
     arr.push(x)
     u = next
+    makeTree.flush()
   }
 
   var start = u.begin
@@ -232,7 +234,9 @@ tape("remove()", function(t) {
   for(var n=0; n<sz.length; ++n) {
     var c = sz[n]
     var u = iota(c).reduce(function(u, k, v) {
-      return u.insert(k, v)
+      var r = u.insert(k, v)
+      makeTree.flush()
+      return r
     }, makeTree())
     for(var i=0; i<c; ++i) {
       checkTree(u.remove(i), t)
